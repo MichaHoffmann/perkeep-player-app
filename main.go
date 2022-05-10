@@ -27,9 +27,7 @@ import (
 
 /*
 TODO:
-  * endpoint to fetch latest audio metadata
-  * searching in frontend using https://lunrjs.com/docs/index.html
-  * own and better css
+  * Elm Player Application
 */
 
 var (
@@ -249,13 +247,10 @@ func main() {
 		logger.Fatalf("no app config: %v", err)
 	}
 
-	// player handler
 	ph, err := newPlayerHandler(conf)
 	if err != nil {
 		logger.Fatalf("unable to create player handler: %v", err)
 	}
-
-	// static handler
 	fh := http.FileServer(http.FS(staticFiles))
 
 	// server
