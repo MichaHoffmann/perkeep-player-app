@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <title>Player</title>
-  <script src="dist/howler/howler.core.js"></script>
+  <script src="dist/howler/howler.core.min.js"></script>
   <script src="dist/elm/main.js"></script>
 </head>
 <body>
@@ -14,48 +14,116 @@
 <script>
 
 var sound;
+var volume = 0.1;
+
+function elmVolumeToHowlerVolume(vol) { return vol/100; }
+function howlerVolumeToElmVolume(vol) { return vol*100; }
 
 var app = Elm.Main.init({
   node: document.getElementById('elm-app'),
-  flags: [
-    {
-      "name": "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3",
-      "artist": "mock",
-      "album": "mock",
-      "blobref": "mock",
-    }
-  ],
 });
 
-app.ports.init.subscribe(function(track) {
-    console.log(track)
-    sound = new Howl({
-      src: track,
-      html5: true,
-      volume: 0.1,
-      onplay: function(id) {
-        console.log("player: starting to play: ", id)
-      },
-      onpause: function(id) {
-        console.log("player: pausing player: ", id)
-      },
-      onstop: function(id) {
-        console.log("player: stopping player: ", id)
+app.ports.audioPortToJs.subscribe(function(msg) {
+  switch (msg.type) {
+    case "init":
+      console.log("elm: request init: ", msg.url);
+      init(msg.url); break;
+    case "play":
+      if (!sound) { 
+        break;
       }
-    });
+      console.log("elm: request play");
+      sound.play(); break;
+    case "pause":
+      if (!sound) { 
+        break;
+      }
+      console.log("elm: request pause");
+      sound.pause(); break;
+    case "stop":
+      if (!sound) { 
+        break;
+      }
+      console.log("elm: request stop");
+      sound.stop(); break;
+    case "volume":
+      if (!sound) { 
+        break;
+      }
+      volume = elmVolumeToHowlerVolume(msg.volume)
+      console.log("elm: request volume: ", volume);
+      sound.volume(volume); break;
+    case "seekto":
+      if (!sound) { 
+        break;
+      }
+      console.log("elm: request seek to: ", msg.seek);
+      sound.seek(msg.seek); break;
+    case "getseek":
+      if (!sound) { 
+        break;
+      }
+      console.log("elm: request seek state: ", sound.seek());
+      app.ports.audioPortFromJs.send({"type": "seekstate", "seek": sound.seek()}); break;
+    default:
+      console.log("unexpected message type: ", msg);
+  }
 });
 
-app.ports.play.subscribe(function() {
-  sound.play();
-});
+function init(url) {
+  console.log("initializing: ", url);
 
-app.ports.pause.subscribe(function() {
-  sound.pause();
-});
+  if (sound) {
+    console.log("player: unloading previously initiated player");
+    sound.unload();
+  }
 
-app.ports.stop.subscribe(function() {
-  sound.stop();
-});
+  sound = new Howl({
+    src: url,
+    html5: true,
+    volume: volume,
+    format: ["mp3", "flac"],
+    onload: function(id) {
+      console.log("player: loaded: ", id, ", takes: ", sound.duration());
+      app.ports.audioPortFromJs.send({"type": "onload", "duration": sound.duration()});
+    },
+    onloaderror: function(id, err) {
+      console.log("player: error loading: ", id, err);
+      app.ports.audioPortFromJs.send({"type": "onloaderror", "error": err});
+    },
+    onplay: function(id) {
+      console.log("player: starting to play: ", id);
+      app.ports.audioPortFromJs.send({"type": "onplay"});
+    },
+    onplayerror: function(id, err) {
+      console.log("player: error playing: ", id, err);
+      app.ports.audioPortFromJs.send({"type": "onplayerror", "error": err});
+    },
+    onpause: function(id) {
+      console.log("player: pausing player: ", id);
+      app.ports.audioPortFromJs.send({"type": "onpause"});
+    },
+    onstop: function(id) {
+      console.log("player: stopping player: ", id);
+      app.ports.audioPortFromJs.send({"type": "onstop"});
+    },
+    onend: function(id) {
+      console.log("player: player ended: ", id);
+      app.ports.audioPortFromJs.send({"type": "onend"});
+    },
+    onvolume: function(id) {
+      console.log("player: player volume changed: ", volume);
+      app.ports.audioPortFromJs.send({"type": "onvolume", "volume": howlerVolumeToElmVolume(volume)});
+    },
+    onseek: function(id) {
+      seek = sound.seek();
+      console.log("player: player seek changed: ", seek);
+      app.ports.audioPortFromJs.send({"type": "seekstate", "seek": seek});
+    }
+  });
+  console.log("player: initialized");
+  app.ports.audioPortFromJs.send({"type": "oninitialized"});
+}
 
 </script>
 

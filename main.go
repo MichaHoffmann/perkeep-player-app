@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -24,11 +25,6 @@ import (
 	"perkeep.org/pkg/search"
 	"perkeep.org/pkg/webserver"
 )
-
-/*
-TODO:
-  * Elm Player Application
-*/
 
 var (
 	flagVersion = flag.Bool("version", false, "show version")
@@ -86,12 +82,12 @@ type playerHandler struct {
 }
 
 type audioData struct {
-	BlobRef   string
-	Artist    string
-	Title     string
-	Album     string
-	Genre     string
-	MediaType string
+	BlobRef string
+	Artist  string
+	Title   string
+	Album   string
+	Genre   string
+	Track   int64
 }
 
 var masterQuery = &search.SearchQuery{
@@ -177,13 +173,16 @@ func (h *playerHandler) refreshMasterQueryResults() error {
 		if !isValidAudioMeta(blobMeta) {
 			continue
 		}
+		// track can be used to sort an album
+		track, _ := strconv.ParseInt(blobMeta.MediaTags["track"], 10, 64)
+
 		audioFiles = append(audioFiles, audioData{
-			BlobRef:   blob.Blob.String(),
-			Title:     blobMeta.MediaTags["title"],
-			Album:     blobMeta.MediaTags["album"],
-			Artist:    blobMeta.MediaTags["artist"],
-			Genre:     blobMeta.MediaTags["genre"],
-			MediaType: blobMeta.File.MIMEType,
+			BlobRef: blob.Blob.String(),
+			Title:   blobMeta.MediaTags["title"],
+			Album:   blobMeta.MediaTags["album"],
+			Artist:  blobMeta.MediaTags["artist"],
+			Genre:   blobMeta.MediaTags["genre"],
+			Track:   track,
 		})
 	}
 	h.masterQueryResults = audioFiles
@@ -200,7 +199,6 @@ func isValidAudioMeta(blobMeta *search.DescribedBlob) bool {
 		hasMediaTag("title") &&
 		hasMediaTag("album") &&
 		hasMediaTag("artist")
-
 }
 
 func (h *playerHandler) loopRefreshMasterQueryResults() {
@@ -212,7 +210,6 @@ func (h *playerHandler) loopRefreshMasterQueryResults() {
 	}
 }
 
-// TODO: proper endpoint
 func (h *playerHandler) ServeHTTP(rw http.ResponseWriter, req *http.Request) {
 	h.masterQueryMu.Lock()
 	defer h.masterQueryMu.Unlock()
